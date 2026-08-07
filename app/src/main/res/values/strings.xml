@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DayCount</string>
+    <string name="nav_countdown">倒数日</string>
+    <string name="nav_countup">正数日</string>
+    <string name="nav_manage">事件管理</string>
+    <string name="nav_personalize">个性化设置</string>
+    <string name="nav_settings">设置</string>
+    <string name="nav_about">关于</string>
+    <string name="add_event">添加事件</string>
+    <string name="edit_event">编辑事件</string>
+    <string name="delete_event">删除事件</string>
+    <string name="confirm_delete">确定要删除这个事件吗？</string>
+    <string name="cancel">取消</string>
+    <string name="save">保存</string>
+    <string name="title_hint">事件名称</string>
+    <string name="description_hint">事件描述（可选）</string>
+    <string name="select_date">选择日期</string>
+    <string name="days_remaining">剩余 %d 天</string>
+    <string name="days_passed">已过 %d 天</string>
+    <string name="empty_countdown">还没有倒数事件，点击下方按钮添加</string>
+    <string name="empty_countup">还没有正数事件，记录值得纪念的开始</string>
+    <string name="app_description">一款简洁的倒数日应用，记录生命中每一个重要的日子，让时间变得有温度。</string>
+    <string name="developed_by">Developed by 安遥 Justup No.</string>
+    <string name="background_opacity">背景不透明度</string>
+    <string name="theme_color">主题配色</string>
+    <string name="choose_image">选择图片</string>
+    <string name="dark_mode">深色模式</string>
+    <string name="widget_settings">小部件设置</string>
+    <string name="widget_transparency">小部件透明度</string>
+    <string name="widget_size">小部件尺寸</string>
+    <string name="event_type_countdown">倒数日</string>
+    <string name="event_type_countup">正数日</string>
+    <string name="sort_by_date">按日期排序</string>
+    <string name="sort_by_name">按名称排序</string>
+    <string name="sort_by_create">按创建时间排序</string>
+</resources>

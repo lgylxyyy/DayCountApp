@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="page_background">#F5F5F7</color>
+    <color name="card_background">#FFFFFF</color>
+    <color name="text_primary">#1D1D1F</color>
+    <color name="text_secondary">#86868B</color>
+    <color name="brand_blue">#007AFF</color>
+    <color name="separator">#D2D2D7</color>
+    <color name="search_background">#1C1C1C1F</color>
+</resources>

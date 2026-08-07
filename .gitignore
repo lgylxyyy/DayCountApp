@@ -1,0 +1,46 @@
+# Built outputs
+app/build/
+build/
+.gradle/
+
+# Android specific
+local.properties
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# Keystore files (security!)
+keystore/daycount-release.jks
+keystore/*.jks
+keystore/*.keystore
+
+# IDE files
+.idea/
+*.iml
+.DS_Store
+
+# Gradle
+.gradle/
+build/
+
+# Kotlin
+*.class
+*.jar
+*.war
+*.ear
+
+# Environment variables and secrets
+.env
+.env.local
+*.key
+*.pem
+*.cert
+
+# Log files
+*.log
+logs/
+
+# OS specific
+.DS_Store
+Thumbs.db
