@@ -1,5 +1,6 @@
 package com.daycountapp.ui.screens
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -37,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -59,7 +61,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.daycountapp.DayCountApp
 import com.daycountapp.data.model.Event
-import com.daycountapp.ui.components.DragListState
 import com.daycountapp.ui.components.SwipeableEventCard
 import com.daycountapp.ui.theme.CUSTOM_COLOR_INDEX
 import com.daycountapp.ui.theme.DestructiveRed
@@ -70,9 +71,6 @@ import com.daycountapp.ui.theme.GradientIconStart
 import com.daycountapp.ui.theme.TextSecondary
 import com.daycountapp.ui.viewmodel.EventViewModel
 import com.daycountapp.util.VibrationManager
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 
 private const val CARD_HEIGHT_DP = 76
 private const val CARD_GAP_DP = 5
@@ -129,8 +127,13 @@ fun EventManagementScreen(
 
     val displayEvents = remember { mutableStateListOf<Event>() }
     val listState = rememberLazyListState()
-    val dragState = remember { DragListState() }
     val density = LocalDensity.current
+
+    // 拖拽状态
+    var draggedIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
+    var dragStartY by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(allEvents, filterMode, searchQuery) {
         val filtered =
@@ -149,19 +152,6 @@ fun EventManagementScreen(
             }
         displayEvents.clear()
         displayEvents.addAll(result)
-    }
-
-    // 自动滚动：当拖拽到边缘时自动滚动列表
-    LaunchedEffect(dragState.autoScrollSpeed) {
-        if (dragState.autoScrollSpeed != 0f && dragState.isDragging) {
-            val scrollDirection = if (dragState.autoScrollSpeed > 0) 1 else -1
-            while (isActive) {
-                val firstVisible = listState.firstVisibleItemIndex
-                val targetIndex = (firstVisible + scrollDirection).coerceIn(0, displayEvents.size - 1)
-                listState.animateScrollToItem(targetIndex)
-                delay(100)
-            }
-        }
     }
 
     Box(
@@ -259,107 +249,108 @@ fun EventManagementScreen(
                     }
                 }
             } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .weight(1f)
-                        .pointerInput(displayEvents.size) {
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = { offset ->
-                                    // 计算起始索引
-                                    val itemHeight = with(density) {
-                                        (CARD_HEIGHT_DP + CARD_GAP_DP).dp.toPx()
-                                    }
-                                    val index = (offset.y / itemHeight).toInt()
-                                    if (index in displayEvents.indices) {
-                                        dragState.onDragStart(index)
-                                        VibrationManager.vibrate(20L)  // 震动反馈：进入拖拽模式
-                                    }
-                                },
-                                onDrag = { change, dragAmount ->
-                                    change.consume()
-                                    dragState.onDragOffset(dragAmount.y)
+                Box(modifier = Modifier.weight(1f)) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp),
+                    ) {
+                        itemsIndexed(displayEvents, key = { _, event -> event.id }) { index, event ->
+                            val isExpanded = expandedEventId == event.id
+                            val isLongPressMode = expandedLongPressId == event.id
+                            val isBeingDragged = draggedIndex == index && isDragging
+                            val itemHeightPx = with(density) { (CARD_HEIGHT_DP + CARD_GAP_DP).dp.toPx() }
 
-                                    // 自动滚动检测
-                                    val listHeight = size.height.toFloat()
-                                    val edgeThreshold = 100f
-                                    when {
-                                        dragState.dragOffset < -listHeight + edgeThreshold -> {
-                                            dragState.autoScrollSpeed = -20f
-                                        }
-                                        dragState.dragOffset > listHeight - edgeThreshold -> {
-                                            dragState.autoScrollSpeed = 20f
-                                        }
-                                        else -> dragState.autoScrollSpeed = 0f
-                                    }
-
-                                    // 计算目标位置并交换
-                                    dragState.draggedIndex?.let { fromIndex ->
-                                        val itemHeight = with(density) {
-                                            (CARD_HEIGHT_DP + CARD_GAP_DP).dp.toPx()
-                                        }
-                                        val targetIndex = ((fromIndex * itemHeight + dragState.dragOffset) / itemHeight)
-                                            .toInt()
-                                            .coerceIn(0, displayEvents.size - 1)
-
-                                        if (targetIndex != fromIndex) {
-                                            viewModel.reorderEvents(fromIndex, targetIndex, displayEvents)
-                                            dragState.draggedIndex = targetIndex
-                                            dragState.dragOffset = 0f
-                                            VibrationManager.vibrate(10L)  // 震动反馈：卡片交换
-                                        }
-                                    }
-                                },
-                                onDragEnd = {
-                                    dragState.onDragEnd()
-                                },
+                            // 计算动画缩放
+                            val scale by animateFloatAsState(
+                                targetValue = if (isBeingDragged) 1.05f else 1f,
+                                label = "scale"
                             )
-                        },
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp),
-                ) {
-                    itemsIndexed(displayEvents, key = { _, event -> event.id }) { index, event ->
-                        val isExpanded = expandedEventId == event.id
-                        val isLongPressMode = expandedLongPressId == event.id
-                        val isDragging = dragState.draggedIndex == index && dragState.isDragging
 
-                        val cardClickHandler: () -> Unit = {
-                            if (isLongPressMode) {
-                                expandedLongPressId = -1L
-                            } else {
-                                expandedEventId = if (isExpanded) -1L else event.id
-                                expandedLongPressId = -1L
-                            }
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .offset { IntOffset(0, if (isDragging) dragState.dragOffset.toInt() else 0) }
-                                .graphicsLayer {
-                                    scaleX = if (isDragging) 1.05f else 1f
-                                    scaleY = if (isDragging) 1.05f else 1f
-                                    alpha = if (isDragging) 0.9f else 1f
-                                    shadowElevation = if (isDragging) 16f else 0f
+                            val cardClickHandler: () -> Unit = {
+                                if (!isDragging) {
+                                    if (isLongPressMode) {
+                                        expandedLongPressId = -1L
+                                    } else {
+                                        expandedEventId = if (isExpanded) -1L else event.id
+                                        expandedLongPressId = -1L
+                                    }
                                 }
-                                .animateItem()
-                        ) {
-                            SwipeableEventCard(
-                                event = event,
-                                isExpanded = isExpanded,
-                                onToggle = cardClickHandler,
-                                onEdit = { onEventClick(event.id) },
-                                onDelete = {
-                                    eventToDelete = event
-                                    showDeleteDialog = true
-                                },
-                                onHide = { viewModel.hideEvent(event) },
-                                onLongPress = {
-                                    VibrationManager.vibrate(50L)
-                                    expandedLongPressId = event.id
-                                },
-                                showHideButton = isLongPressMode,
-                                animationDelay = 0,
-                            )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .offset {
+                                        IntOffset(
+                                            0,
+                                            if (isBeingDragged) dragOffset.toInt() else 0
+                                        )
+                                    }
+                                    .graphicsLayer {
+                                        scaleX = scale
+                                        scaleY = scale
+                                        if (isBeingDragged) {
+                                            alpha = 0.95f
+                                        }
+                                    }
+                                    .zIndex(if (isBeingDragged) 1f else 0f)
+                                    .pointerInput(index) {
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = {
+                                                draggedIndex = index
+                                                dragStartY = it.y
+                                                dragOffset = 0f
+                                                isDragging = true
+                                                VibrationManager.vibrate(20L)
+                                            },
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                dragOffset += dragAmount.y
+
+                                                // 计算目标位置并交换
+                                                val fromIndex = draggedIndex ?: return@detectDragGesturesAfterLongPress
+                                                val targetIndex = ((fromIndex * itemHeightPx + dragOffset) / itemHeightPx)
+                                                    .toInt()
+                                                    .coerceIn(0, displayEvents.size - 1)
+
+                                                if (targetIndex != fromIndex) {
+                                                    viewModel.reorderEvents(fromIndex, targetIndex, displayEvents)
+                                                    draggedIndex = targetIndex
+                                                    // 不重置 dragOffset，保持跟手
+                                                    VibrationManager.vibrate(10L)
+                                                }
+                                            },
+                                            onDragEnd = {
+                                                isDragging = false
+                                                draggedIndex = null
+                                                dragOffset = 0f
+                                            },
+                                            onDragCancel = {
+                                                isDragging = false
+                                                draggedIndex = null
+                                                dragOffset = 0f
+                                            },
+                                        )
+                                    }
+                            ) {
+                                SwipeableEventCard(
+                                    event = event,
+                                    isExpanded = isExpanded && !isDragging,
+                                    onToggle = cardClickHandler,
+                                    onEdit = { onEventClick(event.id) },
+                                    onDelete = {
+                                        eventToDelete = event
+                                        showDeleteDialog = true
+                                    },
+                                    onHide = { viewModel.hideEvent(event) },
+                                    onLongPress = {
+                                        // 长按不触发任何操作，拖拽由 pointerInput 处理
+                                    },
+                                    showHideButton = isLongPressMode && !isDragging,
+                                    animationDelay = 0,
+                                )
+                            }
                         }
                     }
                 }
