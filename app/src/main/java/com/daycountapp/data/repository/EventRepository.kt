@@ -109,4 +109,9 @@ class EventRepository(
     suspend fun updatePreviewEvent(event: Event) {
         eventDao.updateEvent(event.copy(isPreview = true))
     }
+
+    // 拖拽排序相关方法
+    suspend fun updateEventOrders(events: List<Event>) {
+        eventDao.updateSortOrders(events)
+    }
 }

@@ -2,6 +2,7 @@ package com.daycountapp.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -23,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.daycountapp.DayCountApp
+import com.daycountapp.data.model.Event
 import com.daycountapp.ui.theme.CUSTOM_COLOR_INDEX
 import com.daycountapp.ui.theme.EventColors
 import com.daycountapp.ui.theme.GradientDirection
@@ -40,7 +42,17 @@ fun HiddenEventsScreen(
     val hiddenEvents by viewModel.hiddenEvents.collectAsState(initial = emptyList())
     var expandedEventId by remember { mutableStateOf(-1L) }
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var eventToDelete by remember { mutableStateOf<com.daycountapp.data.model.Event?>(null) }
+    var eventToDelete by remember { mutableStateOf<Event?>(null) }
+    var sortOrder by remember { mutableIntStateOf(0) }  // 0=创建时间，1=更新时间
+
+    // 根据排序方式排序
+    val sortedEvents = remember(hiddenEvents, sortOrder) {
+        when (sortOrder) {
+            0 -> hiddenEvents.sortedByDescending { it.createTime }  // 最新创建的在前
+            1 -> hiddenEvents.sortedByDescending { it.updateTime }  // 最近更新的在前
+            else -> hiddenEvents
+        }
+    }
 
     val app = DayCountApp.instance
     val themeGradientStartIdx by app.appSettings.themeGradientStartIndex.collectAsState(initial = -1)
@@ -140,11 +152,58 @@ fun HiddenEventsScreen(
                 )
             }
         } else {
+            // 排序按钮
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val sortOptions = listOf("按创建时间", "按更新时间")
+                sortOptions.forEachIndexed { index, label ->
+                    val isSelected = sortOrder == index
+                    val bgModifier =
+                        if (isSelected && gradientBrush != null) {
+                            Modifier.background(brush = gradientBrush, shape = RoundedCornerShape(22.dp))
+                        } else {
+                            Modifier.background(
+                                color = if (isSelected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(22.dp),
+                            )
+                        }
+                    Surface(
+                        modifier = Modifier
+                            .then(bgModifier)
+                            .clickable {
+                                VibrationManager.vibrate(10L)
+                                sortOrder = index
+                            },
+                        shape = RoundedCornerShape(22.dp),
+                        color = Color.Transparent,
+                        tonalElevation = if (isSelected) 4.dp else 0.dp,
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(top = 4.dp),
             ) {
-                itemsIndexed(hiddenEvents, key = { _, e -> e.id }) { _, event ->
+                itemsIndexed(sortedEvents, key = { _, e -> e.id }) { _, event ->
                     val isExpanded = event.id == expandedEventId
 
                     com.daycountapp.ui.components.SwipeableEventCard(

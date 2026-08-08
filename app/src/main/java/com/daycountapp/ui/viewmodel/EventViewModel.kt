@@ -128,6 +128,30 @@ class EventViewModel(
         }
     }
 
+    // 拖拽排序相关方法
+    fun reorderEvents(fromIndex: Int, toIndex: Int, displayEvents: MutableList<Event>) {
+        viewModelScope.launch {
+            if (fromIndex < 0 || fromIndex >= displayEvents.size ||
+                toIndex < 0 || toIndex >= displayEvents.size) return@launch
+
+            // 移动元素
+            val item = displayEvents.removeAt(fromIndex)
+            displayEvents.add(toIndex, item)
+
+            // 更新 sortOrder
+            val updatedList = displayEvents.mapIndexed { index, event ->
+                event.copy(sortOrder = index)
+            }
+
+            // 更新 UI
+            displayEvents.clear()
+            displayEvents.addAll(updatedList)
+
+            // 持久化到数据库
+            repository.updateEventOrders(updatedList)
+        }
+    }
+
     class Factory(
         private val repository: EventRepository,
     ) : ViewModelProvider.Factory {

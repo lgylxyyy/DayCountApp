@@ -11,19 +11,19 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface EventDao {
-    @Query("SELECT * FROM events WHERE isHidden = 0 AND isDeleted = 0 AND isPreview = 0 ORDER BY isPinned DESC, targetDate ASC")
+    @Query("SELECT * FROM events WHERE isHidden = 0 AND isDeleted = 0 AND isPreview = 0 ORDER BY isPinned DESC, sortOrder ASC, targetDate ASC")
     fun getAllEvents(): Flow<List<Event>>
 
-    @Query("SELECT * FROM events WHERE isHidden = 0 AND isDeleted = 0 AND isPreview = 0 ORDER BY isPinned DESC, targetDate ASC")
+    @Query("SELECT * FROM events WHERE isHidden = 0 AND isDeleted = 0 AND isPreview = 0 ORDER BY isPinned DESC, sortOrder ASC, targetDate ASC")
     fun getVisible(): Flow<List<Event>>
 
     @Query("SELECT * FROM events WHERE isHidden = 1 AND isDeleted = 0 AND isPreview = 0 ORDER BY createTime DESC")
     fun getHidden(): Flow<List<Event>>
 
-    @Query("SELECT * FROM events WHERE isCountUp = 0 AND isHidden = 0 AND isDeleted = 0 AND isPreview = 0 ORDER BY isPinned DESC, targetDate ASC")
+    @Query("SELECT * FROM events WHERE isCountUp = 0 AND isHidden = 0 AND isDeleted = 0 AND isPreview = 0 ORDER BY isPinned DESC, sortOrder ASC, targetDate ASC")
     fun getCountdownEvents(): Flow<List<Event>>
 
-    @Query("SELECT * FROM events WHERE isCountUp = 1 AND isHidden = 0 AND isDeleted = 0 AND isPreview = 0 ORDER BY isPinned DESC, targetDate ASC")
+    @Query("SELECT * FROM events WHERE isCountUp = 1 AND isHidden = 0 AND isDeleted = 0 AND isPreview = 0 ORDER BY isPinned DESC, sortOrder ASC, targetDate ASC")
     fun getCountUpEvents(): Flow<List<Event>>
 
     @Query("SELECT * FROM events WHERE isDeleted = 1 ORDER BY deleteTime DESC")
@@ -76,4 +76,15 @@ interface EventDao {
 
     @Query("SELECT MAX(id) FROM events")
     suspend fun getMaxId(): Long?
+
+    // 拖拽排序相关方法
+    @androidx.room.Transaction
+    suspend fun updateSortOrders(events: List<Event>) {
+        events.forEach { event ->
+            updateSortOrder(event.id, event.sortOrder)
+        }
+    }
+
+    @Query("UPDATE events SET sortOrder = :sortOrder WHERE id = :eventId")
+    suspend fun updateSortOrder(eventId: Long, sortOrder: Int)
 }

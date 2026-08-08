@@ -26,4 +26,5 @@ data class Event(
     val isDeleted: Boolean = false, // true=回收站
     val deleteTime: Long = 0L, // 删除时间，用于回收站排序
     val isPreview: Boolean = false, // true=预览卡片，不出现在主界面
+    val sortOrder: Int = 0, // 排序顺序，用于拖拽排序
 )

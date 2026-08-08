@@ -2,6 +2,7 @@ package com.daycountapp.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -47,13 +49,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.daycountapp.DayCountApp
 import com.daycountapp.data.model.Event
+import com.daycountapp.ui.components.DragListState
 import com.daycountapp.ui.components.SwipeableEventCard
 import com.daycountapp.ui.theme.CUSTOM_COLOR_INDEX
 import com.daycountapp.ui.theme.DestructiveRed
@@ -64,6 +70,8 @@ import com.daycountapp.ui.theme.GradientIconStart
 import com.daycountapp.ui.theme.TextSecondary
 import com.daycountapp.ui.viewmodel.EventViewModel
 import com.daycountapp.util.VibrationManager
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 private const val CARD_HEIGHT_DP = 76
@@ -121,6 +129,8 @@ fun EventManagementScreen(
 
     val displayEvents = remember { mutableStateListOf<Event>() }
     val listState = rememberLazyListState()
+    val dragState = remember { DragListState() }
+    val density = LocalDensity.current
 
     LaunchedEffect(allEvents, filterMode, searchQuery) {
         val filtered =
@@ -139,6 +149,19 @@ fun EventManagementScreen(
             }
         displayEvents.clear()
         displayEvents.addAll(result)
+    }
+
+    // 自动滚动：当拖拽到边缘时自动滚动列表
+    LaunchedEffect(dragState.autoScrollSpeed) {
+        if (dragState.autoScrollSpeed != 0f && dragState.isDragging) {
+            val scrollDirection = if (dragState.autoScrollSpeed > 0) 1 else -1
+            while (isActive) {
+                val firstVisible = listState.firstVisibleItemIndex
+                val targetIndex = (firstVisible + scrollDirection).coerceIn(0, displayEvents.size - 1)
+                listState.animateScrollToItem(targetIndex)
+                delay(100)
+            }
+        }
     }
 
     Box(
@@ -238,12 +261,66 @@ fun EventManagementScreen(
             } else {
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .pointerInput(displayEvents.size) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { offset ->
+                                    // 计算起始索引
+                                    val itemHeight = with(density) {
+                                        (CARD_HEIGHT_DP + CARD_GAP_DP).dp.toPx()
+                                    }
+                                    val index = (offset.y / itemHeight).toInt()
+                                    if (index in displayEvents.indices) {
+                                        dragState.onDragStart(index)
+                                        VibrationManager.vibrate(20L)  // 震动反馈：进入拖拽模式
+                                    }
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    dragState.onDragOffset(dragAmount.y)
+
+                                    // 自动滚动检测
+                                    val listHeight = size.height.toFloat()
+                                    val edgeThreshold = 100f
+                                    when {
+                                        dragState.dragOffset < -listHeight + edgeThreshold -> {
+                                            dragState.autoScrollSpeed = -20f
+                                        }
+                                        dragState.dragOffset > listHeight - edgeThreshold -> {
+                                            dragState.autoScrollSpeed = 20f
+                                        }
+                                        else -> dragState.autoScrollSpeed = 0f
+                                    }
+
+                                    // 计算目标位置并交换
+                                    dragState.draggedIndex?.let { fromIndex ->
+                                        val itemHeight = with(density) {
+                                            (CARD_HEIGHT_DP + CARD_GAP_DP).dp.toPx()
+                                        }
+                                        val targetIndex = ((fromIndex * itemHeight + dragState.dragOffset) / itemHeight)
+                                            .toInt()
+                                            .coerceIn(0, displayEvents.size - 1)
+
+                                        if (targetIndex != fromIndex) {
+                                            viewModel.reorderEvents(fromIndex, targetIndex, displayEvents)
+                                            dragState.draggedIndex = targetIndex
+                                            dragState.dragOffset = 0f
+                                            VibrationManager.vibrate(10L)  // 震动反馈：卡片交换
+                                        }
+                                    }
+                                },
+                                onDragEnd = {
+                                    dragState.onDragEnd()
+                                },
+                            )
+                        },
                     contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp),
                 ) {
                     itemsIndexed(displayEvents, key = { _, event -> event.id }) { index, event ->
                         val isExpanded = expandedEventId == event.id
                         val isLongPressMode = expandedLongPressId == event.id
+                        val isDragging = dragState.draggedIndex == index && dragState.isDragging
 
                         val cardClickHandler: () -> Unit = {
                             if (isLongPressMode) {
@@ -254,7 +331,18 @@ fun EventManagementScreen(
                             }
                         }
 
-                        Box(modifier = Modifier.fillMaxWidth()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .offset { IntOffset(0, if (isDragging) dragState.dragOffset.toInt() else 0) }
+                                .graphicsLayer {
+                                    scaleX = if (isDragging) 1.05f else 1f
+                                    scaleY = if (isDragging) 1.05f else 1f
+                                    alpha = if (isDragging) 0.9f else 1f
+                                    shadowElevation = if (isDragging) 16f else 0f
+                                }
+                                .animateItem()
+                        ) {
                             SwipeableEventCard(
                                 event = event,
                                 isExpanded = isExpanded,
