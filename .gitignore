@@ -29,6 +29,7 @@ build/
 *.jar
 *.war
 *.ear
+.kotlin/
 
 # Environment variables and secrets
 .env

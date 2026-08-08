@@ -295,43 +295,47 @@ fun EventManagementScreen(
                                         }
                                     }
                                     .zIndex(if (isBeingDragged) 1f else 0f)
-                                    .pointerInput(index) {
-                                        detectDragGesturesAfterLongPress(
-                                            onDragStart = {
-                                                draggedIndex = index
-                                                dragStartY = it.y
-                                                dragOffset = 0f
-                                                isDragging = true
-                                                VibrationManager.vibrate(20L)
-                                            },
-                                            onDrag = { change, dragAmount ->
-                                                change.consume()
-                                                dragOffset += dragAmount.y
+                                    .pointerInput(index, isExpanded) {
+                                        // 只有未展开的卡片才能拖动
+                                        if (!isExpanded) {
+                                            detectDragGesturesAfterLongPress(
+                                                onDragStart = {
+                                                    draggedIndex = index
+                                                    dragStartY = it.y
+                                                    dragOffset = 0f
+                                                    isDragging = true
+                                                    VibrationManager.vibrate(20L)
+                                                },
+                                                onDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    dragOffset += dragAmount.y
 
-                                                // 计算目标位置并交换
-                                                val fromIndex = draggedIndex ?: return@detectDragGesturesAfterLongPress
-                                                val targetIndex = ((fromIndex * itemHeightPx + dragOffset) / itemHeightPx)
-                                                    .toInt()
-                                                    .coerceIn(0, displayEvents.size - 1)
+                                                    // 计算目标位置并交换
+                                                    val fromIndex = draggedIndex ?: return@detectDragGesturesAfterLongPress
+                                                    val targetIndex = ((fromIndex * itemHeightPx + dragOffset) / itemHeightPx)
+                                                        .toInt()
+                                                        .coerceIn(0, displayEvents.size - 1)
 
-                                                if (targetIndex != fromIndex) {
-                                                    viewModel.reorderEvents(fromIndex, targetIndex, displayEvents)
-                                                    draggedIndex = targetIndex
-                                                    // 不重置 dragOffset，保持跟手
-                                                    VibrationManager.vibrate(10L)
-                                                }
-                                            },
-                                            onDragEnd = {
-                                                isDragging = false
-                                                draggedIndex = null
-                                                dragOffset = 0f
-                                            },
-                                            onDragCancel = {
-                                                isDragging = false
-                                                draggedIndex = null
-                                                dragOffset = 0f
-                                            },
-                                        )
+                                                    if (targetIndex != fromIndex) {
+                                                        viewModel.reorderEvents(fromIndex, targetIndex, displayEvents)
+                                                        draggedIndex = targetIndex
+                                                        // 调整 dragOffset 以保持跟手
+                                                        dragOffset -= (targetIndex - fromIndex) * itemHeightPx
+                                                        VibrationManager.vibrate(10L)
+                                                    }
+                                                },
+                                                onDragEnd = {
+                                                    isDragging = false
+                                                    draggedIndex = null
+                                                    dragOffset = 0f
+                                                },
+                                                onDragCancel = {
+                                                    isDragging = false
+                                                    draggedIndex = null
+                                                    dragOffset = 0f
+                                                },
+                                            )
+                                        }
                                     }
                             ) {
                                 SwipeableEventCard(
@@ -345,7 +349,11 @@ fun EventManagementScreen(
                                     },
                                     onHide = { viewModel.hideEvent(event) },
                                     onLongPress = {
-                                        // 长按不触发任何操作，拖拽由 pointerInput 处理
+                                        // 展开的卡片长按呼出隐藏和删除按钮
+                                        if (isExpanded && !isDragging) {
+                                            VibrationManager.vibrate(50L)
+                                            expandedLongPressId = event.id
+                                        }
                                     },
                                     showHideButton = isLongPressMode && !isDragging,
                                     animationDelay = 0,

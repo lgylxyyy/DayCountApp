@@ -6,8 +6,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -46,6 +47,7 @@ enum class CardVariant {
     RECYCLE_BIN,
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SwipeableEventCard(
     event: Event,
@@ -176,23 +178,23 @@ fun SwipeableEventCard(
 
                 Spacer(Modifier.width(14.dp))
 
-                // 内容区域：detectTapGestures（回收站禁用长按）
+                // 内容区域：combinedClickable（回收站禁用长按）
                 Column(
                     modifier =
                         Modifier
                             .weight(1f)
                             .fillMaxHeight()
                             .padding(top = 12.dp, bottom = 12.dp, end = 4.dp)
-                            .pointerInput(showTwoButtons, isExpanded) {
-                                detectTapGestures(
-                                    onTap = { onToggle() },
-                                    onLongPress = {
-                                        if (isExpanded && !isRecycleBin) {
-                                            onLongPress()
-                                        }
-                                    },
-                                )
-                            },
+                            .combinedClickable(
+                                onClick = { onToggle() },
+                                onLongClick = {
+                                    if (isExpanded && !isRecycleBin) {
+                                        onLongPress()
+                                    }
+                                },
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null,
+                            ),
                 ) {
                     Text(
                         text = event.title,
